@@ -1,0 +1,24 @@
+# Local IDE / SDK state
+.idea/
+*.iml
+local.properties
+.gradle/
+.kotlin/
+**/build/
+.DS_Store
+Thumbs.db
+
+# Local credentials and signing material
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.key
+
+# Generated packages and diagnostic output
+*.apk
+*.apks
+*.aab
+*.log
