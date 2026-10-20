@@ -6,6 +6,12 @@ activity = "1.13.0"
 miuix = "0.9.4-rc01"
 shizuku = "13.1.5"
 junit = "4.13.2"
+robolectric = "4.17"
+hiddenapibypass = "6.1"
+android-compile = "37"
+android-min = "33"
+privilege-compile = "36"
+privilege-min = "29"
 
 [libraries]
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity" }
@@ -14,15 +20,21 @@ miuix-preference = { module = "top.yukonga.miuix.kmp:miuix-preference-android", 
 miuix-blur = { module = "top.yukonga.miuix.kmp:miuix-blur-android", version.ref = "miuix" }
 miuix-icons = { module = "top.yukonga.miuix.kmp:miuix-icons-android", version.ref = "miuix" }
 miuix-nav = { module = "top.yukonga.miuix.kmp:miuix-nav-android", version.ref = "miuix" }
-hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version = "6.1" }
+miuix-ui-common = { module = "top.yukonga.miuix.kmp:miuix-ui", version.ref = "miuix" }
+miuix-preference-common = { module = "top.yukonga.miuix.kmp:miuix-preference", version.ref = "miuix" }
+miuix-blur-common = { module = "top.yukonga.miuix.kmp:miuix-blur", version.ref = "miuix" }
+miuix-icons-common = { module = "top.yukonga.miuix.kmp:miuix-icons", version.ref = "miuix" }
+miuix-nav-common = { module = "top.yukonga.miuix.kmp:miuix-nav", version.ref = "miuix" }
+hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenapibypass" }
 shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku" }
 shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizuku" }
 junit = { module = "junit:junit", version.ref = "junit" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+compose-ui-test = { module = "androidx.compose.ui:ui-test-junit4", version.ref = "cmp" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 android-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

@@ -22,3 +22,9 @@ Thumbs.db
 *.apks
 *.aab
 *.log
+*.hprof
+*.jfr
+*.mp4
+*.zip
+captures/
+.cxx/
