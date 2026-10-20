@@ -12,3 +12,5 @@
 | JUnit/Robolectric/Compose UI Test | 本地协议、状态机和组件回归；测试依赖不打包进产品 |
 
 scrcpy 不是下载的桌面二进制，而是子模块固定源码参与编译，见[来源](upstream-scrcpy.md)。Mishka 移植及许可见[文件清单](upstream-mishka.md)。构建不依赖其他仓库的未提交源码。
+
+Miuix 使用 Maven Central 正式发布件，对齐依据为[官方正式发布记录](https://github.com/compose-miuix-ui/miuix/releases/tag/v0.9.4)；所有模块通过版本目录使用同一版本，不依赖本地 Miuix 源码或候选发布件。外观页与定制控制的产品设计保持，依赖升级单独回归。
