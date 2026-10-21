@@ -194,8 +194,12 @@
     <string name="ui_resolution">分辨率上限</string>
     <string name="ui_resolution_auto">自动（镜像 1600 px，独立应用原始尺寸）</string>
     <string name="ui_resolution_native">原始尺寸（不限）</string>
-    <string name="ui_resolution_custom">自定义上限（px；-1 自动、0 不限、128–8192）</string>
-    <string name="ui_fps">帧率上限（帧/秒；0 不限，最高 240）</string>
+    <string name="ui_resolution_custom">最大边长（像素，128–8192）</string>
+    <string name="ui_fps">帧率上限</string>
+    <string name="ui_fps_custom">每秒帧数（大于 0，最高 240，可填小数）</string>
+    <string name="ui_fps_value">%1$d 帧/秒</string>
+    <string name="ui_custom">自定义</string>
+    <string name="ui_unlimited">不限</string>
     <string name="ui_video_rate">码率（Mbps；0.1–100）</string>
     <string name="ui_sound">声音</string>
     <string name="ui_sound_enabled">传输声音</string>

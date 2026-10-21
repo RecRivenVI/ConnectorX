@@ -9,7 +9,7 @@
 | 高 | U-04、AN-13/T-03 | 本机显示、媒体恢复、IME 与系统装饰路径 | 单元测试不证明跨厂商恢复、中文输入、音频/实际帧率可用 | 按 validations 与人工清单验收；当前 shennong 页面检查不能代替跨 ROM/双机矩阵 |
 | 中 | AN-09/AN-10 | MainActivity.kt、ConnectorEngine.kt、LocalAppSession.kt、core/ui 页面 | 状态大量直接用 mutableStateOf，未普遍采用 ViewModel/StateFlow；部分组件缺预览、参数顺序不统一 | 小步提升状态与单向流，保留已验证的会话所有权和事件准入 |
 | 中 | AN-03 | core/ui/src/commonMain 与 androidMain；core/privilege 编译 fork 源集 | Android-only UI 仍用 KMP/Compose Resources，非单一默认源码根；privilege 的额外源码来自独立上游 | UI 后续迁移默认 Android 资源前对比本地化与生成包；fork 源码按 G-09 保持原样，特权模块继续显式编译 |
-| 中 | C-01/C-12、AN-08 | app/core 存量 Kotlin/Java 与 Gradle 文件 | 存在压缩单行、分号与混合格式；本环境没有 Android Studio，未执行其格式化器 | 用 Android Studio 默认格式化做独立变更，再运行现有测试；本轮只统一文本编码/换行，不声称已经格式化 |
+| 中 | C-01/C-12、AN-08 | app/core 存量 Kotlin/Java 与 Gradle 文件 | 未涉及的存量文件仍有压缩单行、分号与混合格式 | 本轮修改的 Kotlin/Gradle 已使用 Android Studio Kotlin 官方风格格式化；其他文件随相关维护处理 |
 | 中 | C-07/C-11 | core/ui/.../component/liquid/LiquidGlassNavigationBar.kt；ThemeSettingsScreen.kt | 前者超过约600行，后者长函数，但来自指定 Mishka 正文 | 保留来源；只在独立授权 UI 改造时按职责拆分，并对照固定源和文案 |
 | 中 | U-01/AN-12 | app/.../ui/remote/LocalScrollControl.kt、overlay/OverlayControls.kt、core/ui 页面 | 用户确认的定制控件包含尺寸/颜色常量，尚未全部归入标准主题 tokens | 先保留手感与几何基线，再提取语义 token；不把现有用户设计当作标准 Miuix 控件 |
 | 中 | U-03/U-06 | 未改动的特权提示、悬浮服务通知及少量错误来源 | 重排页面已改用资源、用户状态和诊断开关；其他既有页面/服务仍有硬编码文案 | 随相关功能维护迁移资源，不批量改写 ROM 原始错误与上游源码 |
@@ -33,6 +33,6 @@
 - 已配对设备 Tab 使用现有发现候选与会话状态点；发现候选没有“上次在线”或可靠过期数据，本轮不新增。离线说明不能作为认证失败判据。
 - 本轮不使用模拟器，当前真机未覆盖深浅色切换、最大字号和宽屏；无权限/配对成功/配对拒绝等状态没有在用户设备上人为制造。
 - 新远端预览、右侧客户端滚轮、触摸/坐标和退出需要双机真实验收；构建与单位测试不等于可用验收。
-- Android Studio 默认格式化器不可用；新页面按 Kotlin 风格人工整理和 LF 统一，未声称执行 IDE 格式化。现有 UI 模型/回调和预览债务继续保留，不为本轮重写成新的状态架构。
+- 本轮修改的 Kotlin/Gradle 已执行 Android Studio 格式化；现有 UI 模型/回调和预览债务继续保留，不为本轮重写成新的状态架构。
 
 - 新页面尚未补齐 IDE 预览（AN-10）；本轮用授权真机检查可达状态，未验证的显示变体单独列出。ADB 搜索键盘返回后的焦点/前台行为需人工手势复测，不能据合成按键推定所有 ROM 兼容。
