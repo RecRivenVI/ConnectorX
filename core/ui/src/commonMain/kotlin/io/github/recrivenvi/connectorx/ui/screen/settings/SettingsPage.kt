@@ -1,43 +1,48 @@
 package io.github.recrivenvi.connectorx.ui.screen.settings
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import org.jetbrains.compose.resources.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import io.github.recrivenvi.connectorx.shared.resources.*
-import io.github.recrivenvi.connectorx.ui.component.*
-import io.github.recrivenvi.connectorx.ui.component.blur.*
-import io.github.recrivenvi.connectorx.ui.util.WideContentBox
+import io.github.recrivenvi.connectorx.ui.component.TaskPage
+import org.jetbrains.compose.resources.stringResource
 import top.yukonga.miuix.kmp.basic.*
-import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.utils.overScrollVertical
-import top.yukonga.miuix.kmp.utils.scrollEndHaptic
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
-fun SettingsPage(bottomPadding:Dp,onTheme:()->Unit,onMedia:(()->Unit)?=null) {
-    val scroll=MiuixScrollBehavior()
-    val backdrop=rememberBlurBackdrop()
-    Scaffold(topBar={ BlurredBar(backdrop) {
-        AdaptiveTopAppBar(stringResource(Res.string.settings_title),color=if(backdrop!=null) Color.Transparent else MiuixTheme.colorScheme.surface,scrollBehavior=scroll)
-    } }) { inner -> WideContentBox { side ->
-        LazyColumn(Modifier.fillMaxSize().then(if(backdrop!=null) Modifier.layerBackdrop(backdrop) else Modifier)
-            .scrollEndHaptic().overScrollVertical().nestedScroll(scroll.nestedScrollConnection),
-            contentPadding=PaddingValues(start=side,end=side,top=inner.calculateTopPadding(),bottom=bottomPadding)) {
-            item { Spacer(Modifier.height(12.dp)) }
-            groupedCardItems("settings",listOf(CardItem("theme") {
-                ArrowPreference(title=stringResource(Res.string.settings_theme_title),summary=stringResource(Res.string.settings_theme_summary),onClick=onTheme)
-            }))
-            if(onMedia!=null) groupedCardItems("media",listOf(CardItem("entry") {
-                ArrowPreference(title="远控画面与音频",summary="帧率、码率、视频编码、音频来源与编码",onClick=onMedia)
-            }))
-            item { Spacer(Modifier.height(24.dp).navigationBarsPadding()) }
+fun SettingsPage(bottomPadding: Dp, onTheme: () -> Unit, media: MediaSettingsModel?, onMedia: (() -> Unit)?,
+    diagnosticsEnabled: Boolean, onDiagnosticsChange: (Boolean) -> Unit, versionName: String,
+    predictive: Boolean, onPredictive: ((Boolean) -> Unit)?, swipe: Boolean, onSwipe: (Boolean) -> Unit) {
+    TaskPage(stringResource(Res.string.ui_settings), bottomPadding = bottomPadding) {
+        item { SmallTitle(stringResource(Res.string.ui_personalization)) }
+        item { Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            ArrowPreference(title = stringResource(Res.string.settings_theme_title), summary = stringResource(Res.string.settings_theme_summary), onClick = onTheme)
+        } }
+        if (media != null && onMedia != null) {
+            item { SmallTitle(stringResource(Res.string.ui_remote_control)) }
+            item { Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                val values = media.values
+                val resolution = when (values["videoMaxSize"]) {
+                    "-1" -> stringResource(Res.string.ui_auto); "0" -> stringResource(Res.string.ui_native); else -> values["videoMaxSize"].orEmpty() + " px"
+                }
+                ArrowPreference(title = stringResource(Res.string.ui_media_title), summary = stringResource(Res.string.ui_media_summary, resolution,
+                    values["maxFps"].orEmpty().removeSuffix(".0"), displayRate(values["videoBitRate"].orEmpty(), 6),
+                    stringResource(if (values["audio"] == "true") Res.string.ui_sound_on else Res.string.ui_sound_off)), onClick = onMedia)
+            } }
         }
-    } }
+        item { SmallTitle(stringResource(Res.string.ui_gestures)) }
+        item { Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            onPredictive?.let { SwitchPreference(title = stringResource(Res.string.settings_predictive_back), summary = stringResource(Res.string.settings_predictive_back_summary), checked = predictive, onCheckedChange = it) }
+            SwitchPreference(title = stringResource(Res.string.settings_swipe_dismiss), summary = stringResource(Res.string.settings_swipe_dismiss_summary), checked = swipe, onCheckedChange = onSwipe)
+        } }
+        item { SmallTitle(stringResource(Res.string.ui_advanced)) }
+        item { Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            SwitchPreference(title = stringResource(Res.string.ui_diagnostics), summary = stringResource(Res.string.ui_diagnostics_summary), checked = diagnosticsEnabled, onCheckedChange = onDiagnosticsChange)
+        } }
+        item { SmallTitle(stringResource(Res.string.ui_about)) }
+        item { Card(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) { BasicComponent(title = stringResource(Res.string.ui_version), summary = versionName) } }
+    }
 }

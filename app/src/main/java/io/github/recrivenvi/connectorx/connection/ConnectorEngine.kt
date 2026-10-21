@@ -49,6 +49,10 @@ class ConnectorEngine(private val context: Context) {
     var privilege by mutableStateOf("被控端请先启用 Shizuku"); private set
     var hosting by mutableStateOf(false); private set
     var pairing by mutableStateOf(false); private set
+    var pairingAttempt by mutableStateOf(false); private set
+    var pairingFailed by mutableStateOf(false); private set
+    var discovering by mutableStateOf(false); private set
+    var discoveryFailed by mutableStateOf(false); private set
     var peers by mutableStateOf(listOf<Peer>()); private set
     var candidates by mutableStateOf(listOf<Candidate>()); private set
     var prompt by mutableStateOf<PairPrompt?>(null); private set
@@ -63,6 +67,7 @@ class ConnectorEngine(private val context: Context) {
     val identity = Identity(context)
     val appLibrary = io.github.recrivenvi.connectorx.preferences.AppLibraryStore(context)
     val appCatalogs = mutableStateMapOf<String,AppCatalog>()
+    val appCatalogErrors = mutableStateMapOf<String,String>()
     var libraryDeviceId by mutableStateOf(identity.id);private set
     var libraryRequest by mutableIntStateOf(0);private set
     val runtime = RuntimeConnection(context) { message -> ui { privilege = message } }
@@ -92,7 +97,7 @@ class ConnectorEngine(private val context: Context) {
     private fun selectCatalog(id:String) {libraryDeviceId=id;libraryRequest++}
     private fun finishCatalogLoad(id:String) {
         loadingApps=false
-        if(libraryDeviceId!=id&&appCatalogs[libraryDeviceId]==null)refreshLibrary()
+        if(libraryDeviceId!=id)refreshLibrary()
     }
 
     fun message(value: String) { ui { status = value }; Log.i("ConnectorX", value) }
@@ -272,6 +277,8 @@ class ConnectorEngine(private val context: Context) {
     }
     fun pair(host: String) {
         if (!connecting.compareAndSet(false, true)) return
+        pairingAttempt = true
+        pairingFailed = false
         if (!work {
             try {
                 connect(host, null).use { socket ->
@@ -288,8 +295,9 @@ class ConnectorEngine(private val context: Context) {
                     check(input.readBoolean() && accepted) { "配对取消或被拒绝" }
                     identity.save(Peer(id, name, host, profile)); refreshPeers(); message("已与 $name 持久配对")
                 }
-            } finally { connecting.set(false) }
-        }) connecting.set(false)
+            } catch (e: Exception) { ui { pairingFailed = true }; throw e }
+            finally { connecting.set(false); ui { pairingAttempt = false } }
+        }) { connecting.set(false); pairingAttempt = false; pairingFailed = true }
     }
     private fun connect(host: String, expected: String?): SSLSocket {
         require(host.isNotBlank() && host.length <= 253 && !host.contains('/')) { "请输入设备 IP 或主机名，不含端口" }
@@ -393,22 +401,24 @@ class ConnectorEngine(private val context: Context) {
         if(navigate)selectCatalog(identity.id)
         if(loadingApps)return
         val service=runtime.service
-        if(service==null){controlError="本机应用控制需要先启用 Shizuku。";return}
+        if(service==null){appCatalogErrors[identity.id]="permission";return}
         loadingApps=true
+        appCatalogErrors.remove(identity.id)
         if(!work {
             try {
                 val array=JSONArray(service.listApps())
                 val apps=(0 until array.length()).map {i->array.getJSONObject(i).let {RemoteApp(it.getString("package"),it.getString("name"))}}
                     .filterNot {it.packageName==context.packageName}
                 ui {val value=AppCatalog(localPeer(),"",apps,true);appCatalogs[identity.id]=value;if(navigate)catalog=value}
-            } catch(e:Exception){ui {controlError=e.message?:"无法读取本机应用列表"}}
+            } catch(e:Exception){Log.e("ConnectorX","Local app catalog failed",e);ui {appCatalogErrors[identity.id]=e.message?:"read"}}
             finally {ui {finishCatalogLoad(identity.id)}}
-        })loadingApps=false
+        }) {loadingApps=false;appCatalogErrors[identity.id]="busy"}
     }
     fun showApps(peer: Peer, host: String = peer.host, localControl:Boolean=false) {
         selectCatalog(peer.id)
         if (loadingApps) return
         loadingApps = true
+        appCatalogErrors.remove(peer.id)
         if (!work {
             try {
                 connect(host, peer.id).use { socket ->
@@ -420,9 +430,9 @@ class ConnectorEngine(private val context: Context) {
                     val apps = (0 until array.length()).map { i -> array.getJSONObject(i).let { RemoteApp(it.getString("package"), it.getString("name")) } }
                     ui { val value=AppCatalog(peer,host,apps,localControl);appCatalogs[peer.id]=value;catalog=value }
                 }
-            } catch (e: Exception) { ui { controlError = e.message ?: "无法读取应用列表" }; throw e }
+            } catch (e: Exception) { ui { appCatalogErrors[peer.id] = e.message ?: "read" }; throw e }
             finally { ui { finishCatalogLoad(peer.id) } }
-        }) loadingApps = false
+        }) {loadingApps=false;appCatalogErrors[peer.id]="busy"}
     }
     fun refreshSessionInfo(session: RemoteSession) {
         if (session.app == null || !session.running || !session.infoFetching.compareAndSet(false, true)) return
@@ -583,10 +593,15 @@ class ConnectorEngine(private val context: Context) {
     fun discover() {
         discovery?.let { runCatching { nsd.stopServiceDiscovery(it) } }
         candidates = emptyList()
+        discovering = true
+        discoveryFailed = false
         val d = object : NsdManager.DiscoveryListener {
-            override fun onDiscoveryStarted(type: String) {}
-            override fun onDiscoveryStopped(type: String) {}
-            override fun onStartDiscoveryFailed(type: String, error: Int) { message("发现失败：$error，可手动输入 IP") }
+            override fun onDiscoveryStarted(type: String) { ui { if (discovery === this) discovering = true } }
+            override fun onDiscoveryStopped(type: String) { ui { if (discovery === this) discovering = false } }
+            override fun onStartDiscoveryFailed(type: String, error: Int) {
+                ui { if (discovery === this) { discovering = false; discoveryFailed = true } }
+                message("发现失败：$error，可手动输入 IP")
+            }
             override fun onStopDiscoveryFailed(type: String, error: Int) {}
             override fun onServiceLost(info: NsdServiceInfo) {}
             override fun onServiceFound(info: NsdServiceInfo) {
@@ -604,6 +619,6 @@ class ConnectorEngine(private val context: Context) {
         }
         discovery = d
         runCatching { nsd.discoverServices("_connectorx._tcp.", NsdManager.PROTOCOL_DNS_SD, d) }
-            .onFailure { message("发现不可用：${it.message}，请使用 IP") }
+            .onFailure { discovering = false; discoveryFailed = true; message("发现不可用：${it.message}，请使用 IP") }
     }
 }

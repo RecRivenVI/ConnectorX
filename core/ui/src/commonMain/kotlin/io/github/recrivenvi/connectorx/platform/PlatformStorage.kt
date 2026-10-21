@@ -15,6 +15,7 @@ object StorageKeys {
     const val NAV_RAIL_EXPANDED = "nav_rail_expanded"
     const val PREDICTIVE_BACK = "predictive_back"
     const val SWIPE_DISMISS = "swipe_dismiss"
+    const val SESSION_DIAGNOSTICS = "session_diagnostics"
 }
 
 interface PlatformStorage {

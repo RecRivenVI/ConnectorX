@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.AndroidView
 import top.yukonga.miuix.kmp.basic.Text
+import io.github.recrivenvi.connectorx.shared.resources.*
+import org.jetbrains.compose.resources.stringResource
 
 @Composable
 internal fun RemoteVideo(session: RemoteSession, modifier: Modifier = Modifier) {
@@ -32,6 +34,6 @@ internal fun RemoteVideo(session: RemoteSession, modifier: Modifier = Modifier) 
                 setOnTouchListener(RemoteTouchListener(session))
             }
         })
-        if (session.width == 0) Text("等待远程画面…", color = Color.White)
+        if (session.width == 0) Text(stringResource(Res.string.ui_waiting_video), color = Color.White)
     }
 }

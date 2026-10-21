@@ -1,24 +1,34 @@
 package io.github.recrivenvi.connectorx.ui.remote
 
 import androidx.compose.runtime.Composable
+import io.github.recrivenvi.connectorx.ui.screen.settings.LocalSessionDiagnostics
+import io.github.recrivenvi.connectorx.ui.screen.settings.displayRate
 import io.github.recrivenvi.connectorx.session.RemoteSession
+import io.github.recrivenvi.connectorx.shared.resources.*
+import org.jetbrains.compose.resources.stringResource
 import top.yukonga.miuix.kmp.basic.Text
+import java.util.Locale
+
+private fun decimal(value: Number) = String.format(Locale.ROOT, "%.2f", value.toDouble())
 
 @Composable
-internal fun StreamQualitySummary(session:RemoteSession) {
-    Text("质量 ${session.qualityStatus} · 接收 ${"%.1f".format(session.receivedFps)} / 解码输出 ${"%.1f".format(session.renderedFps)} fps · ${"%.2f".format(session.videoMbps)} Mbps")
+internal fun StreamQualitySummary(session: RemoteSession) {
+    if (!LocalSessionDiagnostics.current) return
+    Text(stringResource(Res.string.ui_quality_summary, session.qualityStatus, decimal(session.receivedFps), decimal(session.renderedFps), decimal(session.videoMbps)))
 }
 
 @Composable
-internal fun StreamQualityDetails(session:RemoteSession) {
+internal fun StreamQualityDetails(session: RemoteSession) {
+    if (!LocalSessionDiagnostics.current) return
     StreamQualitySummary(session)
-    Text("视频 ${session.width}×${session.height} · ${session.media.videoCodec.uppercase()} · 目标 ${session.media.maxFps} fps / ${session.media.videoBitRate} bps")
-    Text("关键帧 ${"%.2f".format(session.keyframeFps)} fps · 平均帧 ${"%.1f".format(session.averageFrameKiB)} KiB · 解码积压 ${session.decoderBacklogFrames} 帧")
-    Text("相对视频积压 ${"%.1f".format(session.relativeVideoDelayMs)} ms · 本秒解码输入等待 ${"%.1f".format(session.decoderInputWaitMs)} ms · 配置缓冲 ${session.media.videoBufferMs} ms")
-    Text("解码器 ${session.videoDecoderName} · ${when(session.videoDecoderHardware){true->"硬件";false->"软件";null->"未知"}}")
-    if(session.media.audio) {
-        Text("音频 ${session.audioFormat} · ${"%.1f".format(session.audioKbps)} kbps · ${"%.1f".format(session.audioPacketsPerSecond)} 包/s · underrun ${session.audioUnderruns}")
-        Text("音频缓冲 ${session.media.audioBufferMs} ms · 输出缓冲 ${session.media.audioOutputBufferMs} ms · ${session.audioStatus}")
-    } else Text("音频已关闭")
-    Text("解码输出统计提交给 Surface 的帧，不等同于 SurfaceFlinger 实际上屏。吞吐仅统计媒体 payload；相对积压不包含首帧固定延迟，也不是触摸到显示的端到端延迟。")
+    Text(stringResource(Res.string.ui_quality_video, session.width, session.height, session.media.videoCodec.uppercase(), session.media.maxFps.toString(), displayRate(session.media.videoBitRate.toString(), 6)))
+    Text(stringResource(Res.string.ui_quality_frames, decimal(session.keyframeFps), decimal(session.averageFrameKiB), session.decoderBacklogFrames))
+    Text(stringResource(Res.string.ui_quality_delay, decimal(session.relativeVideoDelayMs), decimal(session.decoderInputWaitMs), session.media.videoBufferMs))
+    val hardware = stringResource(when (session.videoDecoderHardware) { true -> Res.string.ui_hardware; false -> Res.string.ui_software; null -> Res.string.ui_unknown })
+    Text(stringResource(Res.string.ui_quality_decoder, session.videoDecoderName, hardware))
+    if (session.media.audio) {
+        Text(stringResource(Res.string.ui_quality_audio, session.audioFormat, decimal(session.audioKbps), decimal(session.audioPacketsPerSecond), session.audioUnderruns.toString()))
+        Text(stringResource(Res.string.ui_quality_audio_buffer, session.media.audioBufferMs, session.media.audioOutputBufferMs, session.audioStatus))
+    } else Text(stringResource(Res.string.ui_audio_disabled))
+    Text(stringResource(Res.string.ui_quality_definitions))
 }

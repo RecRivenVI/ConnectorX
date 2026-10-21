@@ -19,8 +19,7 @@ import io.github.recrivenvi.connectorx.shared.resources.*
 import io.github.recrivenvi.connectorx.platform.*
 import io.github.recrivenvi.connectorx.ui.component.blur.*
 import io.github.recrivenvi.connectorx.ui.component.liquid.IosLiquidGlassNavigationBar
-import io.github.recrivenvi.connectorx.ui.devices.DevicesPage
-import io.github.recrivenvi.connectorx.ui.devices.DevicesModel
+import io.github.recrivenvi.connectorx.ui.devices.*
 import io.github.recrivenvi.connectorx.ui.library.*
 import io.github.recrivenvi.connectorx.ui.screen.settings.ThemeSettingsScreen
 import io.github.recrivenvi.connectorx.ui.screen.settings.*
@@ -42,19 +41,27 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 private data object MediaRoute : NavKey
 private data object MainRoute : NavKey
 private data object ThemeRoute : NavKey
+private data object AddDeviceRoute : NavKey
+private data class DeviceDetailsRoute(val id:String) : NavKey
 
 @Composable
 fun AppShell(devices: DevicesModel, storage: PlatformStorage, theme: ThemeConfig,
              updateTheme: (ThemeConfig) -> Unit, predictiveBack: ((Boolean) -> Unit)?,
              library:LibraryModel,automation:AutomationModel,media:MediaSettingsModel?=null,
+             diagnosticsEnabled:Boolean,onDiagnosticsChange:(Boolean)->Unit,versionName:String,
              backHandler:@Composable (Boolean,()->Unit)->Unit = { _,_-> }) {
     val stack=rememberSaveable(saver=Saver<androidx.compose.runtime.snapshots.SnapshotStateList<NavKey>,List<String>>(
-        save={ it.map { route -> if(route==MediaRoute) "media" else if(route==ThemeRoute) "theme" else "main" } },
+        save={ it.map { route -> when(route) {
+            MediaRoute -> "media"; ThemeRoute -> "theme"; AddDeviceRoute -> "add-device"
+            is DeviceDetailsRoute -> "device:${route.id}"
+            else -> "main"
+        } } },
         restore={ mutableStateListOf<NavKey>().apply { addAll(it.mapNotNull { name -> when(name) {
             "media" -> if(media!=null) MediaRoute else MainRoute
             "theme" -> ThemeRoute
+            "add-device" -> AddDeviceRoute
             "catalog" -> null
-            else -> MainRoute
+            else -> if(name.startsWith("device:")) DeviceDetailsRoute(name.removePrefix("device:")) else MainRoute
         } }) } }
     )) { mutableStateListOf<NavKey>(MainRoute) }
     val pager=rememberPagerState { 4 }
@@ -62,18 +69,26 @@ fun AppShell(devices: DevicesModel, storage: PlatformStorage, theme: ThemeConfig
     val main=rememberMainPagerState(pager,animatePageChanges=!wide)
     var handledRequest by rememberSaveable {mutableIntStateOf(library.request)}
     LaunchedEffect(library.request) {
-        if(library.request!=handledRequest){handledRequest=library.request;main.animateToPage(0)}
+        if(library.request!=handledRequest){handledRequest=library.request;while(stack.size>1)stack.removeAt(stack.lastIndex);main.animateToPage(0)}
     }
     LaunchedEffect(pager.currentPage) { main.syncPage() }
+    var predictive by remember { mutableStateOf(storage.getString(StorageKeys.PREDICTIVE_BACK,"false")=="true") }
     var swipe by remember { mutableStateOf(storage.getString(StorageKeys.SWIPE_DISMISS,"true")=="true") }
     val direction=if(!swipe) null else if(LocalLayoutDirection.current==LayoutDirection.Rtl) NavSwipeDirection.RightToLeft else NavSwipeDirection.LeftToRight
     backHandler(stack.size==1 && main.selectedPage!=0) { main.animateToPage(0) }
+    fun openApps(id:String) {
+        library.sources.firstOrNull {it.id==id}?.select?.invoke()
+        while(stack.size>1)stack.removeAt(stack.lastIndex)
+        main.animateToPage(0)
+    }
     NavDisplay(backStack=stack,onBack={ if(stack.size>1) {
         stack.removeAt(stack.lastIndex)
     } },
         effects=NavDisplayEffects(cornerClipRadius=rememberNavSystemCornerRadius())) {
         entry<MainRoute> {
-            MainTabs(devices,library,automation,main,theme,storage,wide,if(media!=null) {{stack.add(MediaRoute)}} else null) { if(stack.last()!=ThemeRoute) stack.add(ThemeRoute) }
+            MainTabs(devices,library,automation,main,theme,storage,wide,stack.last()==MainRoute,media,if(media!=null) {{stack.add(MediaRoute)}} else null,
+                diagnosticsEnabled,onDiagnosticsChange,versionName,predictive,if(predictiveBack!=null){{value->predictive=value;storage.putString(StorageKeys.PREDICTIVE_BACK,value.toString());predictiveBack(value)}}else null,
+                swipe,{swipe=it;storage.putString(StorageKeys.SWIPE_DISMISS,it.toString())},{stack.add(DeviceDetailsRoute(it))},{stack.add(AddDeviceRoute)},::openApps) { if(stack.last()!=ThemeRoute) stack.add(ThemeRoute) }
         }
         entry<MediaRoute>(swipeDismiss=direction) {media?.let {MediaSettingsPage(it) {if(stack.size>1) stack.removeAt(stack.lastIndex)}}}
         entry<ThemeRoute>(swipeDismiss=direction) {
@@ -81,17 +96,25 @@ fun AppShell(devices: DevicesModel, storage: PlatformStorage, theme: ThemeConfig
                 swipeDismissEnabled=swipe,onSwipeDismissChange={ swipe=it;storage.putString(StorageKeys.SWIPE_DISMISS,it.toString()) },
                 onBack={ if(stack.size>1) stack.removeAt(stack.lastIndex) })
         }
+        entry<DeviceDetailsRoute>(swipeDismiss=direction) {route->
+            DeviceDetailsPage(devices,route.id,{if(stack.size>1)stack.removeAt(stack.lastIndex)},::openApps)
+        }
+        entry<AddDeviceRoute>(swipeDismiss=direction) {
+            AddDevicePage(devices,{if(stack.size>1)stack.removeAt(stack.lastIndex)},::openApps)
+        }
     }
 }
 
 @Composable
 private fun MainTabs(devices: DevicesModel,library:LibraryModel,automation:AutomationModel,main: MainPagerState,theme: ThemeConfig,storage: PlatformStorage,
-                     wide:Boolean,openMedia:(()->Unit)?,openTheme:()->Unit) {
-    val items=listOf(NavigationItem("应用",MiuixIcons.AppRecording),NavigationItem("设备",MiuixIcons.Phone),
-        NavigationItem("自动化",MiuixIcons.Tasks),NavigationItem(stringResource(Res.string.nav_settings),MiuixIcons.Settings))
+                     wide:Boolean,active:Boolean,mediaModel:MediaSettingsModel?,openMedia:(()->Unit)?,diagnosticsEnabled:Boolean,onDiagnosticsChange:(Boolean)->Unit,versionName:String,
+                     predictive:Boolean,onPredictive:((Boolean)->Unit)?,swipe:Boolean,onSwipe:(Boolean)->Unit,
+                     onDetails:(String)->Unit,onAdd:()->Unit,onApps:(String)->Unit,openTheme:()->Unit) {
+    val items=listOf(NavigationItem(stringResource(Res.string.ui_apps),MiuixIcons.AppRecording),NavigationItem(stringResource(Res.string.ui_devices),MiuixIcons.Phone),
+        NavigationItem(stringResource(Res.string.ui_automation),MiuixIcons.Tasks),NavigationItem(stringResource(Res.string.ui_settings),MiuixIcons.Settings))
     val content: @Composable (Modifier,androidx.compose.ui.unit.Dp)->Unit = { modifier,bottom ->
         HorizontalPager(state=main.pagerState,modifier=modifier,verticalAlignment=Alignment.Top,overscrollEffect=null) { page ->
-            when(page) {0->LibraryPage(library,bottom);1->DevicesPage(devices,bottom);2->AutomationPage(automation,bottom);else->SettingsPage(bottom,openTheme,openMedia)}
+            when(page) {0->LibraryPage(library,bottom,active&&main.selectedPage==0,onDetails);1->DevicesPage(devices,bottom,onDetails,onAdd,onApps);2->AutomationPage(automation,bottom);else->SettingsPage(bottom,openTheme,mediaModel,openMedia,diagnosticsEnabled,onDiagnosticsChange,versionName,predictive,onPredictive,swipe,onSwipe)}
         }
     }
     if(wide) {

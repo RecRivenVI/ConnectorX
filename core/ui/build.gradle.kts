@@ -23,7 +23,7 @@ kotlin {
             api(compose.foundation)
             api(compose.ui)
             implementation(compose.animation)
-            implementation(compose.components.resources)
+            api(compose.components.resources)
             api(libs.miuix.ui.common)
             implementation(libs.miuix.preference.common)
             implementation(libs.miuix.blur.common)
@@ -32,4 +32,7 @@ kotlin {
         }
     }
 }
-compose.resources { packageOfResClass = "io.github.recrivenvi.connectorx.shared.resources" }
+compose.resources {
+    packageOfResClass = "io.github.recrivenvi.connectorx.shared.resources"
+    publicResClass = true
+}

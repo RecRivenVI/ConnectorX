@@ -44,8 +44,8 @@ android {
         applicationId = productId
         minSdk = libs.versions.android.min.get().toInt()
         targetSdk = 36
-        versionCode = 55
-        versionName = "1.0.23"
+        versionCode = 56
+        versionName = "1.0.24"
         resValue("string", "app_name", productName)
     }
     buildFeatures { compose = true; buildConfig = true; resValues = true }

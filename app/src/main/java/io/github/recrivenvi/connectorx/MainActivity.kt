@@ -7,11 +7,9 @@ import io.github.recrivenvi.connectorx.shortcuts.RemoteShortcuts
 import io.github.recrivenvi.connectorx.ui.devices.androidDevices
 import io.github.recrivenvi.connectorx.ui.devices.androidLibrary
 import io.github.recrivenvi.connectorx.ui.devices.androidAutomation
-import io.github.recrivenvi.connectorx.ui.remote.ApplicationSettingsDialog
 import io.github.recrivenvi.connectorx.ui.mirror.DeviceMirrorPage
 import io.github.recrivenvi.connectorx.ui.remote.ControlPage
 import io.github.recrivenvi.connectorx.ui.remote.RemoteApplicationPage
-import io.github.recrivenvi.connectorx.ui.remote.RemoteAppsPage
 import io.github.recrivenvi.connectorx.ui.remote.LocalApplicationPage
 
 import android.Manifest
@@ -39,6 +37,11 @@ import io.github.recrivenvi.connectorx.ui.theme.resolveIsDark
 import io.github.recrivenvi.connectorx.ui.navigation.AppShell
 import io.github.recrivenvi.connectorx.platform.PlatformStorage
 import io.github.recrivenvi.connectorx.platform.LocalBackSettings
+import io.github.recrivenvi.connectorx.platform.StorageKeys
+import io.github.recrivenvi.connectorx.ui.screen.settings.LocalSessionDiagnostics
+import org.jetbrains.compose.resources.stringResource
+import io.github.recrivenvi.connectorx.shared.resources.*
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import top.yukonga.miuix.kmp.window.WindowDialog
 import io.github.recrivenvi.connectorx.protocol.AppRequest
@@ -52,10 +55,14 @@ import io.github.recrivenvi.connectorx.ui.library.GlobalScrollModel
 class MainActivity : ComponentActivity() {
     private val engine get() = (application as ConnectorApp).engine
     private var overlayPermission by mutableStateOf(false)
+    private var lanAddress by mutableStateOf("")
     private var pendingOverlay=false
     override fun onResume() {
         super.onResume()
         overlayPermission=Settings.canDrawOverlays(this)
+        val connectivity=getSystemService(android.net.ConnectivityManager::class.java)
+        lanAddress=connectivity.getLinkProperties(connectivity.activeNetwork)?.linkAddresses
+            ?.map {it.address}?.filterIsInstance<java.net.Inet4Address>()?.firstOrNull { !it.isLoopbackAddress }?.hostAddress.orEmpty()
         if(pendingOverlay) {
             pendingOverlay=false
             if(overlayPermission)openGlobalScroll()
@@ -75,15 +82,7 @@ class MainActivity : ComponentActivity() {
         }.onFailure {pendingOverlay=false;GlobalScrollState.error=it.message?:"无法开启悬浮窗"}
     }
     private fun globalScrollModel()=GlobalScrollModel(overlayPermission,GlobalScrollState.visible,GlobalScrollState.direction,
-        GlobalScrollState.error?:when {
-            GlobalScrollState.visible&&!GlobalScrollState.ready->"正在连接权限服务…"
-            GlobalScrollState.direction>0->"正在上滚"
-            GlobalScrollState.direction<0->"正在下滚"
-            GlobalScrollState.visible->"滚动已停止"
-            !overlayPermission->"允许 ConnectorX 显示在其他应用上层"
-            engine.runtime.service==null->"需要已运行的 Shizuku"
-            else->"在其他应用上显示上滚、停止、下滚控件"
-        },::openGlobalScroll,
+        GlobalScrollState.ready,GlobalScrollState.error!=null,::openGlobalScroll,
         {if(GlobalScrollState.visible)startService(Intent(this,GlobalScrollService::class.java).setAction(GlobalScrollService.ACTION_STOP))},
         {stopService(Intent(this,GlobalScrollService::class.java))})
     override fun onStart() {
@@ -97,7 +96,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val storage=remember { PlatformStorage(applicationContext) }
             var themeConfig by remember { mutableStateOf(readThemeConfig(storage)) }
-            var appSettings by remember {mutableStateOf<RemoteApp?>(null)}
+            var diagnosticsEnabled by remember { mutableStateOf(storage.getString(StorageKeys.SESSION_DIAGNOSTICS,"false")=="true") }
             LaunchedEffect(engine.runtime.service) {
                 if(engine.runtime.service!=null&&engine.appCatalogs[engine.identity.id]==null)engine.showLocalApps(navigate=false)
             }
@@ -133,6 +132,7 @@ class MainActivity : ComponentActivity() {
                 onDispose {}
             }
             ConnectorTheme(themeConfig) {
+              CompositionLocalProvider(LocalSessionDiagnostics provides diagnosticsEnabled) {
                 val session = engine.remote
                 when {
                     engine.showingLocal && engine.localSession!=null -> LocalApplicationPage(engine,engine.localSession!!)
@@ -140,43 +140,48 @@ class MainActivity : ComponentActivity() {
                     session?.app != null -> RemoteApplicationPage(engine, session)
                     session != null -> ControlPage(engine, session)
                     else -> shellState.SaveableStateProvider("main-shell") {
-                        AppShell(androidDevices(engine,::toggleHost),storage,themeConfig,{ themeConfig=it },
+                        AppShell(androidDevices(engine,::toggleHost,lanAddress,::openPrivilegeApp),storage,themeConfig,{ themeConfig=it },
                             predictiveBack=if(Build.VERSION.SDK_INT>=34) { { enabled ->
                                 LocalBackSettings.apply(applicationInfo,enabled)
                                 recreate()
                             } } else null,
                             media=io.github.recrivenvi.connectorx.ui.screen.settings.MediaSettingsModel(engine.mediaOptions.values(),io.github.recrivenvi.connectorx.protocol.MediaOptions.defaults().values(),engine::saveMedia),
-                            library=androidLibrary(engine,::launchApp,{appSettings=it},{peer,app->
+                            library=androidLibrary(engine,this,::openPrivilegeApp,::launchApp,{peer,app->
                                 runCatching {RemoteShortcuts.request(this,peer,app,engine::message)}.onFailure {engine.message("快捷方式失败：${it.message}")}
                             }),
-                            automation=androidAutomation(engine,globalScrollModel()) {app,direction->
+                            automation=androidAutomation(engine,::openPrivilegeApp,globalScrollModel()) {app,direction->
                                 runCatching {engine.control(engine.localPeer(),"",profile(app.packageName,true),app.name,initialScroll=direction)}
                                     .onFailure {engine.message("无法开始滚动：${it.message}")}
                             },
+                            diagnosticsEnabled=diagnosticsEnabled,
+                            onDiagnosticsChange={diagnosticsEnabled=it;storage.putString(StorageKeys.SESSION_DIAGNOSTICS,it.toString())},
+                            versionName=BuildConfig.VERSION_NAME,
                             backHandler={enabled,action->androidx.activity.compose.BackHandler(enabled,action)})
                     }
                 }
-                appSettings?.let {app->ApplicationSettingsDialog(app){appSettings=null}}
                 engine.controlError?.let { reason ->
-                    WindowDialog(show = true, title = "无法开始远程控制", onDismissRequest = { engine.dismissControlError() }) {
+                    WindowDialog(show = true, title = stringResource(Res.string.ui_operation_failed), onDismissRequest = { engine.dismissControlError() }) {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Text(reason)
-                            TextButton("知道了", { engine.dismissControlError() }, Modifier.fillMaxWidth())
+                            Text(stringResource(Res.string.ui_operation_failed_reason))
+                            if(diagnosticsEnabled) Text(reason)
+                            TextButton(stringResource(Res.string.ui_return_connectorx), { engine.dismissControlError(); engine.showLibrary() }, Modifier.fillMaxWidth())
                         }
                     }
                 }
                 engine.prompt?.let { prompt ->
-                    WindowDialog(show = true, title = "与 ${prompt.name} 配对", onDismissRequest = { prompt.response.complete(false) }) {
+                    WindowDialog(show = true, title = stringResource(Res.string.ui_check_code), onDismissRequest = { prompt.response.complete(false) }) {
                         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                            Text("请核对两台设备显示的校验码完全一致。确认后，对方可查看并控制本机屏幕。")
-                            Text(prompt.code)
+                            Text(prompt.name)
+                            Text(stringResource(Res.string.ui_check_code_reason))
+                            Text(prompt.code, style=MiuixTheme.textStyles.title1, color=MiuixTheme.colorScheme.primary)
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                TextButton("取消", { prompt.response.complete(false) }, Modifier.weight(1f))
-                                TextButton("一致，允许配对", { prompt.response.complete(true) }, Modifier.weight(1f))
+                                TextButton(stringResource(Res.string.ui_code_mismatch), { prompt.response.complete(false) }, Modifier.weight(1f))
+                                TextButton(stringResource(Res.string.ui_code_match), { prompt.response.complete(true) }, Modifier.weight(1f),colors=ButtonDefaults.textButtonColorsPrimary())
                             }
                         }
                     }
                 }
+              }
             }
         }
         if (savedInstanceState == null) handleShortcut(intent)
@@ -252,5 +257,9 @@ class MainActivity : ComponentActivity() {
                 requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 2)
             startForegroundService(Intent(this, HostService::class.java))
         }
+    }
+    private fun openPrivilegeApp() {
+        val launch=packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+        if(launch!=null) startActivity(launch) else engine.runtime.enable()
     }
 }

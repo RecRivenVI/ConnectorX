@@ -31,6 +31,8 @@ import top.yukonga.miuix.kmp.icon.extended.ChevronBackward
 import top.yukonga.miuix.kmp.icon.extended.ChevronForward
 import top.yukonga.miuix.kmp.icon.extended.Pause
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import io.github.recrivenvi.connectorx.shared.resources.*
+import org.jetbrains.compose.resources.stringResource
 import kotlin.math.floor
 import kotlin.math.roundToInt
 
@@ -56,7 +58,7 @@ internal fun LocalScrollControl(direction:Int,enabled:Boolean,onDirectionChange:
     val colors=MiuixTheme.colorScheme
     val selection by animateFloatAsState((1-direction).toFloat(),tween(200),label="Scroll tab")
     val endSpace=((rightGutterWidth-LocalScrollLayout.TouchWidth)/2).coerceAtLeast(0.dp)
-    val labels=remember {listOf("上滚","停止","下滚")}
+    val labels=listOf(stringResource(Res.string.ui_up),stringResource(Res.string.ui_stop),stringResource(Res.string.ui_down))
     // Do not remember ::localFunction: Kotlin function-reference equality ignores captured enabled.
     // In 1.0.9 that retained the initial disabled closure even after the session became ready.
     // Enablement belongs to the input/semantics nodes; this callback only reads live action state.
